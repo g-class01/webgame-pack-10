@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script>window.open = function () {}; window.NOSW = true;</script>
+<script src="poki-sdk.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2f6ee8" />
+  <title>Pet Lab</title>
+  <link rel="preload" as="image" href="./loading-pc.webp" media="(orientation: landscape)" />
+  <link rel="preload" as="image" href="./loading-mob.webp" media="(orientation: portrait)" />
+  <style>
+    /* the loading screen is drawn by the page itself, before any script or stylesheet arrives */
+    html, body { margin: 0; height: 100%; background: #2f6ee8; overflow: hidden; }
+    /* the game canvas is on the page from the very first moment (Poki's playtest recorder looks for it) */
+    #game-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; background: #7ec8ff; }
+    #boot-loading { position: fixed; inset: 0; display: grid; place-items: end center; background: url(./loading-pc.webp) center / cover no-repeat, linear-gradient(#6cc4ff, #2f6ee8); z-index: 50; transition: opacity .5s; font-family: Fredoka, 'Arial Rounded MT Bold', system-ui, sans-serif; text-align: center; color: #fff; }
+    @media (orientation: portrait) { #boot-loading { background-image: url(./loading-mob.webp), linear-gradient(#6cc4ff, #2f6ee8); } }
+    #boot-loading > div { width: 100%; padding: 40px 16px calc(26px + env(safe-area-inset-bottom)); background: linear-gradient(rgba(10,20,60,0), rgba(10,20,60,.55)); }
+    #boot-loading.hide { opacity: 0; pointer-events: none; }
+    #boot-loading .bt { font-size: 52px; font-weight: 800; letter-spacing: 1px; -webkit-text-stroke: 9px #1a1446; paint-order: stroke fill; text-shadow: 0 7px 0 #1a1446; }
+    #boot-loading .bb { width: min(260px, 70vw); height: 18px; margin: 18px auto 10px; border-radius: 99px; background: rgba(20,16,70,.45); border: 3px solid #1a1446; overflow: hidden; }
+    #boot-loading .bb i { display: block; height: 100%; width: 4%; border-radius: 99px; background: linear-gradient(#ffe96a, #ffb12e); animation: bootFill 9s cubic-bezier(.15,.7,.3,1) forwards; }
+    #boot-loading.done .bb i { width: 100% !important; animation: none; transition: width .25s; }
+    #boot-loading .bs { font-size: 17px; font-weight: 700; -webkit-text-stroke: 4px #1a1446; paint-order: stroke fill; }
+    @keyframes bootFill { to { width: 92%; } }
+  </style>
+  <script type="module" crossorigin src="./assets/index-Dw_xQ48i.js"></script>
+<link rel="preload" as="fetch" crossorigin href="./assets/pack-Qy4b_u_a.bin">
+  <link rel="modulepreload" crossorigin href="./assets/boot-w_2SY3As.js">
+  <link rel="preload" as="style" crossorigin href="./assets/boot-DSxnestx.css">
+</head>
+<body>
+  <div id="app"><canvas id="game-canvas"></canvas></div>
+  <div id="boot-loading" class="loading"><div><div class="bt">Pet Lab</div><div class="bb"><i></i></div><div class="bs">Loading...</div></div></div>
+  
+</body>
+</html>

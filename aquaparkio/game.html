@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Aquapark.io</title>
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #111;
+      }
+      #unity-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #unity-canvas {
+        width: 100%;
+        height: 100%;
+        background: #231F20;
+      }
+      #loading-cover {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: #1e2638;
+        z-index: 99;
+        transition: opacity 0.5s;
+      }
+      .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.2);
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border-left-color: #38bdf8;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      #loading-text {
+        color: #fff;
+        margin-top: 16px;
+        font-family: sans-serif;
+        font-weight: bold;
+        font-size: 16px;
+      }
+    </style>
+    <script>
+      window.open = function () {};
+      window.NOSW = true;
+    </script>
+    <script src="poki-sdk.js"></script>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="loading-cover">
+        <div class="spinner"></div>
+        <div id="loading-text">Loading Aquapark.io...</div>
+      </div>
+    </div>
+    <script src="Build/WebGL.loader.js"></script>
+    <script>
+      const canvas = document.querySelector("#unity-canvas");
+      const loadingCover = document.querySelector("#loading-cover");
+      const loadingText = document.querySelector("#loading-text");
+
+      const config = {
+        dataUrl: "Build/WebGL.data",
+        frameworkUrl: "Build/WebGL.framework.js",
+        codeUrl: "Build/WebGL.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "Cassette",
+        productName: "Aquapark.io",
+        productVersion: "6.14.0",
+        matchWebGLToCanvasSize: true,
+        devicePixelRatio: 1
+      };
+
+      if (window.PokiSDK) {
+        PokiSDK.gameLoadingStart();
+      }
+
+      createUnityInstance(canvas, config, (progress) => {
+        loadingText.textContent = "Loading Aquapark.io... " + Math.round(progress * 100) + "%";
+        if (window.PokiSDK) {
+          PokiSDK.gameLoadingProgress({ percentageDone: progress });
+        }
+      }).then((unityInstance) => {
+        window.unityInstance = unityInstance;
+        loadingCover.style.opacity = "0";
+        setTimeout(() => { loadingCover.style.display = "none"; }, 500);
+        if (window.PokiSDK) {
+          PokiSDK.gameLoadingFinished();
+        }
+      }).catch((message) => {
+        console.error("Unity Error:", message);
+        loadingText.textContent = "Error loading game: " + message;
+      });
+    </script>
+  </body>
+</html>

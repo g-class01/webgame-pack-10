@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script>window.open = function () {}; window.NOSW = true;</script>
+<script src="poki-sdk.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Rat Haul</title>
+
+<style>
+@font-face{font-family:"Silkscreen";font-weight:400;font-display:swap;src:url(fonts/silkscreen-400.woff2) format("woff2")}
+@font-face{font-family:"Silkscreen";font-weight:700;font-display:swap;src:url(fonts/silkscreen-700.woff2) format("woff2")}
+@font-face{font-family:"Silkscreen";font-weight:400;font-display:swap;src:url(fonts/silkscreen-ext-400.woff2) format("woff2");unicode-range:U+0100-024F,U+1E00-1EFF}
+@font-face{font-family:"Silkscreen";font-weight:700;font-display:swap;src:url(fonts/silkscreen-ext-700.woff2) format("woff2");unicode-range:U+0100-024F,U+1E00-1EFF}
+@font-face{font-family:"Work Sans";font-weight:400;font-display:swap;src:url(fonts/worksans-400.woff2) format("woff2")}
+@font-face{font-family:"Work Sans";font-weight:600;font-display:swap;src:url(fonts/worksans-600.woff2) format("woff2")}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-size:14px}
+img{max-width:100%}
+
+/* Layout: full-screen game canvas; HUD pinned to the corners (money top-left, sound/help top-right, shop bottom-right); floating joystick wherever you touch. Single dark look. */
+:root{
+  --blood:#5a1418; --blood-deep:#2b080b; --dot:#7a2228;
+  --gold:#f2b521; --cream:#f3e3b6; --ink:#1b0507; --goo:#9bd35a; --bad:#ff6b5e;
+  --display:"Silkscreen", ui-monospace, monospace;
+  --body:"Work Sans", system-ui, sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--blood-deep);color:var(--cream);font-family:var(--body);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+.stage{position:fixed;inset:0;overflow:hidden;
+  background:radial-gradient(circle at 50% 40%, transparent 0 35%, rgba(27,5,7,.75) 100%),
+    radial-gradient(var(--dot) 1px, transparent 1.4px) 0 0/6px 6px, var(--blood);}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+html,body,canvas,.stage{cursor:var(--cur,auto)}
+#langbtn{margin-top:8px;font-size:12px;padding:6px 14px}
+html.rot .stage{right:auto;bottom:auto;left:0;top:0;transform-origin:0 0;transform:translateX(100vw) rotate(90deg)}
+button,canvas.hand,input{cursor:var(--cur-hand,pointer)}
+input{cursor:text}
+.hud-tl{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));pointer-events:none;
+  display:flex;flex-direction:column;gap:4px;max-width:min(62vw,420px)}
+.money{font-family:var(--display);font-weight:700;font-size:clamp(26px,5vw,38px);color:var(--gold);text-shadow:3px 3px 0 var(--ink);line-height:1;font-variant-numeric:tabular-nums}
+.rate{font-family:var(--display);font-size:13px;color:var(--cream);text-shadow:2px 2px 0 var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chips span{font-family:var(--display);font-size:11px;background:rgba(27,5,7,.78);border:1px solid rgba(243,227,182,.35);padding:3px 6px;font-variant-numeric:tabular-nums}
+.chips b{color:var(--gold);font-weight:700}
+.goal{font-size:12px;line-height:1.35;background:rgba(27,5,7,.6);padding:4px 7px;margin-top:2px;max-width:34ch}
+.hud-tr{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:6px}
+button{font-family:var(--display);font-size:12px;background:var(--ink);color:var(--cream);border:2px solid var(--cream);padding:6px 9px;cursor:pointer;
+  box-shadow:3px 3px 0 var(--ink);touch-action:manipulation}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+button:active:not(:disabled){transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+button:disabled{opacity:.5;cursor:default}
+.shop{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 96px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  background:rgba(43,8,11,.92);border:3px solid #9bd35a;box-shadow:5px 5px 0 var(--ink);padding:10px}
+.shop .boost{border-color:#9bd35a}.shop .boost .nm{color:#9bd35a}.shop .boost .cost{color:#9bd35a}
+.shoptitle{font-family:var(--display);font-weight:700;font-size:15px;color:#9bd35a;letter-spacing:.05em}
+.shop button{display:grid;grid-template-columns:64px 1fr auto;grid-template-rows:auto auto auto;column-gap:10px;row-gap:1px;text-align:left;width:290px;padding:6px 10px 6px 6px;background:rgba(27,5,7,.9);align-items:center}
+.shop .ico3d{grid-row:1/4;grid-column:1;width:64px;height:64px;image-rendering:pixelated;background:radial-gradient(circle at 50% 60%,rgba(242,181,33,.22),rgba(242,181,33,0) 70%)}
+.shop .nm{grid-column:2;color:var(--gold);font-weight:700;font-size:13px}
+.shop .ds{grid-column:2/4;grid-row:2;font-family:var(--body);font-size:11px;opacity:.85;line-height:1.25}
+.shop .lv{grid-column:2;grid-row:3;font-size:10px;color:#9bd35a;letter-spacing:.1em}
+.shop .cost{grid-row:1;grid-column:3;justify-self:end;font-size:13px;font-variant-numeric:tabular-nums}
+.shop button:not(:disabled){border-color:var(--gold)}
+#rotate{position:absolute;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--ink);color:var(--cream);text-align:center;padding:24px}
+#rotate[hidden]{display:none}
+#rotate b{font-family:var(--display);font-size:22px;color:var(--gold);text-shadow:3px 3px 0 #000}
+#rotate span{font-size:14px;opacity:.8}
+.rot-phone{width:46px;height:78px;border:5px solid var(--cream);border-radius:9px;position:relative;animation:rotph 2.2s ease-in-out infinite;margin-bottom:10px}
+.rot-phone i{position:absolute;left:50%;bottom:4px;width:10px;height:4px;margin-left:-5px;background:var(--cream)}
+@keyframes rotph{0%,25%{transform:rotate(0)}55%,100%{transform:rotate(-90deg)}}
+#banner{position:absolute;left:50%;top:calc(22% + env(safe-area-inset-top,0px));transform:translateX(-50%);font-family:var(--display);font-weight:700;
+  font-size:clamp(14px,2.6vw,20px);text-align:center;color:var(--gold);background:rgba(27,5,7,.85);border:2px solid var(--gold);padding:8px 14px;
+  max-width:calc(100% - 32px);text-wrap:balance;pointer-events:none}
+.talk{position:absolute;left:50%;bottom:calc(6% + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(640px,calc(100% - 32px));background:var(--blood-deep);border:3px solid var(--gold);box-shadow:6px 6px 0 var(--ink);padding:14px 18px 12px;z-index:8;cursor:pointer}
+.talk-n{font:700 14px/1 var(--display);color:var(--gold);letter-spacing:.04em;margin-bottom:8px}.talk-t{font:600 17px/1.45 var(--body);color:#f3e3b6}.talk-h{font:700 11px/1 var(--display);color:#9bd35a;text-align:right;margin-top:10px}
+.credits{position:absolute;inset:0;z-index:10;background:#0b0304;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+.cr-win{position:absolute;inset:0 0 70px;overflow:hidden;-webkit-mask-image:linear-gradient(transparent,#000 14%,#000 86%,transparent);mask-image:linear-gradient(transparent,#000 14%,#000 86%,transparent)}
+.cr-roll{position:absolute;left:0;right:0;top:100%;text-align:center;padding:0 16px}.cr-roll.go{animation:crRoll 26s linear forwards}
+@keyframes crRoll{from{transform:translateY(0)}to{transform:translateY(calc(-100% - 42vh))}}
+.cr-end{font:700 clamp(14px,2.6vw,20px)/1.2 var(--display);color:#9bd35a;letter-spacing:.06em}.cr-title{font:700 clamp(30px,7vw,58px)/1.1 var(--display);color:var(--gold);margin:6px 0}
+.cr-sub{font:700 clamp(12px,2.2vw,16px)/1.3 var(--display);color:#f3e3b6;letter-spacing:.08em}.cr-h{font:700 clamp(11px,1.9vw,14px)/1.3 var(--display);color:#ff8a6a;letter-spacing:.1em;margin-top:6px}
+.cr-n{font:600 clamp(15px,2.6vw,20px)/1.5 var(--body);color:#f3e3b6}.cr-s{font:400 clamp(12px,2vw,14px)/1.45 var(--body);color:#c9b48f;max-width:520px;margin:4px auto}.cr-gap{height:clamp(22px,5vh,44px)}
+#cr-go{position:relative;z-index:2;font-size:16px;padding:8px 22px}
+#fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .3s;z-index:9}#fade.on{opacity:1}
+#floaters{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.floater{position:absolute;left:0;top:0;font-family:var(--display);font-weight:700;font-size:14px;color:var(--cream);text-shadow:2px 2px 0 var(--ink);white-space:nowrap}
+.floater.money,.floater.good{color:var(--gold);font-size:16px}
+.floater.bad{color:var(--bad);font-size:18px}
+.floater.goo{color:var(--goo)}
+.floater.tick{color:var(--gold);font-size:12px;opacity:.9}
+.floater.alert{color:var(--bad);font-size:30px}
+#stick{position:absolute;width:112px;height:112px;margin:-56px 0 0 -56px;border-radius:50%;border:2px solid rgba(243,227,182,.5);background:rgba(27,5,7,.25);pointer-events:none}
+#knob{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;background:rgba(242,181,33,.85);border:2px solid var(--ink);transform:translate(-50%,-50%)}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(27,5,7,.62);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+#wheelad{position:absolute;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);min-width:0;font-size:14px;padding:10px 16px;z-index:5;animation:floaty 2.6s ease-in-out infinite}
+.skins{max-width:560px;text-align:center}
+.card.skins{display:flex;flex-direction:column;overflow:hidden}
+.card.skins>.offer-t,.card.skins>.cos-top,.card.skins>.cos-foot{flex:none}
+.card.skins>.skin-grid{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:2px}
+.cos-foot{text-align:center;margin-top:12px}
+@media (max-height:520px){.card.skins{padding:10px 14px}.card.skins>.offer-t{font-size:18px;margin:0 0 2px}.cos-top{margin:2px 0 8px}.cos-tab canvas{width:36px;height:36px}.cos-foot{margin-top:8px}}
+.cos-top{display:flex;align-items:center;gap:6px;margin:4px 0 10px}.cos-tab{font-size:13px;padding:2px 10px;opacity:.55;line-height:0}.cos-tab canvas{width:50px;height:50px;display:block;image-rendering:auto}.cos-tab.on{opacity:1;border-color:var(--gold);color:var(--gold)}
+.cos-money{margin-left:auto;font-family:var(--display);font-weight:700;color:var(--gold);font-size:15px}
+.cos-act{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;justify-content:center}.cos-act button{font-size:10px;padding:4px 7px;min-width:0}
+.cos-buy{border-color:var(--gold);color:var(--gold)}.cos-buy.poor{opacity:.55}.cos-ad{background:#2f6b1f;border-color:#9bd35a;color:#fff}.cos-eq{border-color:#9bd35a;color:#9bd35a;cursor:default}.cos-wear{border-color:var(--cream)}
+#trailx{color:#ffd23a;font-size:13px;margin-left:6px}
+.skin-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:min-content;gap:8px;touch-action:pan-y}
+.cos-pager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:8px}.cos-pager>button{font-size:22px;line-height:1;padding:2px 14px}#cos-dots{display:flex;gap:8px}.cos-dot{width:12px;height:12px;padding:0;border:2px solid rgba(243,227,182,.6);background:transparent;min-width:0}.cos-dot.on{background:var(--gold);border-color:var(--gold)}
+.skin{min-width:0}
+@media (max-height:520px) and (min-width:640px){.card.skins{max-width:min(94vw,760px)}.skin-grid{grid-template-columns:repeat(6,1fr)}.skin canvas{width:72px;height:72px}}
+.skin{border:2px solid rgba(243,227,182,.35);display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px 8px;background:rgba(27,5,7,.85);border-color:rgba(243,227,182,.35)}
+.skin canvas{width:84px;height:84px;image-rendering:pixelated}.skin .sn{font-size:12px;color:var(--gold)}.skin .ss{font-size:10px;font-family:var(--body);opacity:.85}
+.skin.on{border-color:#9bd35a;box-shadow:0 0 0 2px #9bd35a inset}.skin.on .ss{color:#9bd35a;opacity:1}.skin.locked canvas{filter:brightness(.55) saturate(.6)}.skin.locked .ss{color:#9bd35a}
+.offer{text-align:center;max-width:360px;animation:tutpop .4s ease-out}
+.offer-t{font-family:var(--display);font-weight:700;font-size:22px;color:var(--gold);margin-bottom:6px}
+.offer-d{margin:0 0 16px;font-size:15px;line-height:1.35}.offer-d b{color:#9bd35a}
+.offer-row{display:flex;flex-direction:column;align-items:center;gap:8px}
+.adbtn{font-size:16px;padding:12px 20px;background:#2f6b1f;border-color:#9bd35a;color:#fff;min-width:240px}
+.adbtn::before{content:"";display:inline-block;width:0;height:0;border-left:11px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-right:10px;vertical-align:-1px}
+.offer-bar{height:5px;background:rgba(243,227,182,.15);margin-top:14px}.offer-bar i{display:block;height:100%;background:var(--gold);width:100%}
+.card{background:var(--blood-deep);border:3px solid var(--gold);box-shadow:6px 6px 0 var(--ink);padding:20px 22px;max-width:460px;width:100%;max-height:calc(100% - 8px);overflow:auto}
+.card h1{margin:0;font-family:var(--display);font-weight:700;color:var(--gold);font-size:clamp(30px,7vw,44px);line-height:1;text-shadow:3px 3px 0 var(--ink)}
+.card .kick{font-family:var(--display);font-size:11px;color:var(--cream);opacity:.75;letter-spacing:.06em;margin-top:6px}
+.card ul{margin:14px 0;padding-left:18px;display:grid;gap:7px;font-size:14px;line-height:1.4}
+.card li::marker{color:var(--gold)}
+.ctrl{font-size:13px;opacity:.85}
+.touch-only{display:none}
+.stage.touch .touch-only{display:inline}.stage.touch .mouse-only{display:none}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap}
+/* while loading only a loading line shows: the start screen never flashes, the game drops straight into play */
+.stage.booting #intro .startbox>*:not(#loadmsg),.stage.booting #gamever,.stage.booting .hud-tl,.stage.booting .hud-tr,.stage.booting #tut{visibility:hidden}
+.stage.booting #loadmsg{display:block!important;font-size:max(14px,calc(var(--u,1vh)*2.2));color:var(--gold);opacity:.9;letter-spacing:.08em}
+#loadmsg{font-family:var(--display);font-size:max(11px,calc(var(--u,1vh)*1.3));opacity:.75}
+.namefield{display:flex;flex-direction:column;gap:6px;font-family:var(--display);font-size:11px;color:var(--gold);margin:4px 0 12px}
+.namefield input{font-family:var(--display);font-size:16px;background:var(--ink);color:var(--cream);border:2px solid var(--cream);padding:8px 10px;-webkit-user-select:text;user-select:text}
+.namefield input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.vhead{font-family:var(--display);font-size:11px;color:var(--gold);margin-top:14px;letter-spacing:.06em}
+.versions{display:grid;gap:8px;margin-top:8px}
+.ver{display:grid;gap:3px;text-align:left;padding:10px 12px;background:var(--ink);border-color:rgba(243,227,182,.6)}
+.ver .vn{font-weight:700;font-size:14px;color:var(--cream);display:flex;align-items:center;gap:8px}
+.ver .vn em{font-style:normal;font-size:10px;background:var(--gold);color:var(--ink);padding:1px 5px}
+.ver .vd{font-family:var(--body);font-size:12px;opacity:.8}
+.ver[aria-pressed="true"]{border-color:var(--gold);box-shadow:3px 3px 0 var(--ink),inset 0 0 0 1px var(--gold)}
+.ver[aria-pressed="true"] .vn::after{content:"LAST PLAYED";font-size:9px;color:var(--gold);margin-left:auto;opacity:.85}
+.ver:not(:disabled):hover{border-color:var(--gold)}
+.stage.menu .hud-tl,.stage.menu .hud-tr,.stage.menu .shop,.stage.menu #floaters,.stage.menu #banner{visibility:hidden}
+.gamever{position:absolute;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));font:700 max(11px,calc(var(--u,1vh)*1.3))/1 "Silkscreen",monospace;color:rgba(255,226,170,.55);letter-spacing:.06em;pointer-events:none;}
+.overlay.start{background:radial-gradient(circle at 50% 42%, rgba(122,34,40,.55) 0 22%, rgba(27,5,7,.93) 70%);}
+/* title screen scales with the screen: --u = 1% of the height, capped by the width, so it fits a 320px-tall phone and fills a 4K monitor */
+.overlay.start{--u:min(1vh,1.7vw)}
+.startbox{display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*1.6);width:100%;max-width:none}
+#preview{width:calc(var(--u)*48);aspect-ratio:1;display:block}
+#pname{font-family:var(--display);font-weight:700;font-size:max(16px,calc(var(--u)*4.4));text-align:center;color:var(--gold);background:transparent;
+  border:none;border-bottom:max(2px,calc(var(--u)*.35)) dashed rgba(242,181,33,.55);padding:calc(var(--u)*.4) calc(var(--u)*1);width:max(200px,calc(var(--u)*40));text-shadow:max(2px,calc(var(--u)*.3)) max(2px,calc(var(--u)*.3)) 0 var(--ink);-webkit-user-select:text;user-select:text;margin-top:calc(var(--u)*-2.4)}
+.namerow{display:flex;align-items:center;gap:calc(var(--u)*1);margin-top:calc(var(--u)*-2.4)}.namerow #pname{margin-top:0}
+.pdice{width:max(30px,calc(var(--u)*5));height:max(30px,calc(var(--u)*5));padding:max(3px,calc(var(--u)*.5));background:rgba(27,5,7,.85);border:2px solid var(--gold);box-shadow:3px 3px 0 var(--ink);line-height:0;flex:none;cursor:pointer}
+.pdice.roll{animation:dice .35s ease-out}@keyframes dice{0%{transform:rotate(0) scale(1)}50%{transform:rotate(200deg) scale(1.2)}100%{transform:rotate(360deg) scale(1)}}
+#pname:focus-visible{outline:none;border-bottom-color:var(--gold);border-bottom-style:solid}
+.bigplay{font-family:var(--display);font-weight:700;font-size:max(22px,calc(var(--u)*6.4));letter-spacing:.06em;padding:calc(var(--u)*1.5) 0;width:max(200px,calc(var(--u)*40));
+  background:var(--gold);color:var(--ink);border:max(3px,calc(var(--u)*.45)) solid var(--ink);box-shadow:max(4px,calc(var(--u)*.7)) max(4px,calc(var(--u)*.7)) 0 var(--ink);margin-top:calc(var(--u)*.6)}
+.bigplay:not(:disabled):hover{background:#ffc93a}
+.bigplay:disabled{opacity:.55}
+.namehd{display:none;font:700 calc(var(--u)*3.2)/1 var(--display);color:var(--gold);letter-spacing:.04em}.stage.naming .namehd{display:block}.stage.naming .camsel,.stage.naming #gamever{display:none}.stage.naming #banner{visibility:hidden}.stage.naming #play{white-space:nowrap;width:auto;min-width:max(200px,calc(var(--u)*40));padding-left:calc(var(--u)*3);padding-right:calc(var(--u)*3);font-size:max(20px,calc(var(--u)*5.6))}
+.camsel{display:flex;gap:calc(var(--u)*.7)}
+.camsel .ver{font-size:max(10px,calc(var(--u)*1.3));padding:calc(var(--u)*.6) calc(var(--u)*1.1);background:rgba(27,5,7,.85);border:2px solid rgba(243,227,182,.45);box-shadow:none}
+.camsel .ver[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+#sellbox{position:absolute;left:0;top:0;background:rgba(27,5,7,.94);border:3px solid var(--gold);box-shadow:5px 5px 0 #000;padding:10px 12px;min-width:190px;
+  display:flex;flex-direction:column;gap:6px;font-family:var(--display)}
+#sellbox::after{content:"";position:absolute;left:50%;bottom:-11px;width:16px;height:16px;background:rgba(27,5,7,.94);border-right:3px solid var(--gold);border-bottom:3px solid var(--gold);transform:translateX(-50%) rotate(45deg)}
+#sb-name{font-weight:700;font-size:15px}
+#sb-rate{font-size:12px;color:var(--cream);opacity:.85}
+.sb-row{display:flex;gap:6px;margin-top:4px}
+#sb-sell{background:var(--gold);color:var(--ink);border-color:var(--gold);font-weight:700;flex:1}
+#tut{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:10px;
+  background:rgba(27,5,7,.88);border:3px solid var(--gold);box-shadow:4px 4px 0 #000;padding:8px 14px;font-family:var(--display);max-width:calc(100% - 300px);pointer-events:none}
+#tut-n{background:var(--gold);color:var(--ink);font-weight:700;font-size:12px;padding:2px 6px}
+#tut-t{color:var(--cream);font-size:clamp(12px,1.8vw,16px);font-weight:700;text-wrap:balance}
+#tut.pop{animation:tutpop .5s ease-out}
+#tutmark{position:absolute;left:0;top:0;pointer-events:none;z-index:6;will-change:transform}
+#tutmark-l{position:absolute;left:0;bottom:30px;transform:translateX(-50%);white-space:nowrap;background:rgba(27,5,7,.85);border:2px solid var(--gold);color:var(--gold);
+  font-family:var(--display);font-weight:700;font-size:13px;padding:3px 8px;animation:tmbob 0.9s ease-in-out infinite}
+#tutmark-a{position:absolute;left:-14px;top:-26px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:22px solid var(--gold);
+  filter:drop-shadow(0 2px 0 #1b0507);transform-origin:14px 13px;animation:tmbob 0.9s ease-in-out infinite}
+#tutmark.edge #tutmark-l{bottom:auto;top:20px;animation:none}#tutmark.edge #tutmark-a{animation:none}
+@keyframes tmbob{0%,100%{translate:0 0}50%{translate:0 -8px}}
+.stage.menu #tutmark,.stage.cine #tutmark{display:none}
+@keyframes tutpop{0%{transform:translateX(-50%) scale(.6);opacity:0}70%{transform:translateX(-50%) scale(1.08)}100%{transform:translateX(-50%) scale(1);opacity:1}}
+#introcap{position:absolute;left:0;right:0;bottom:16%;text-align:center;font-family:var(--display);font-weight:700;font-size:clamp(20px,4.4vw,44px);color:var(--gold);
+  text-shadow:4px 4px 0 var(--ink),-2px -2px 0 var(--ink);padding:0 16px;text-wrap:balance;pointer-events:none}
+#introcap.pop{animation:cappop .6s ease-out}
+@keyframes cappop{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:none}}
+.stage.menu #tut{display:none}
+.stage.cine #banner,.stage.cine #tut,.stage.cine .hud-tl,.stage.cine .hud-tr,.stage.cine #jumpbtn,.stage.cine #pickbtn,.stage.cine #pick{visibility:hidden}
+.floater.zz{color:#cfe6ff;font-size:16px;opacity:.85}
+@media (max-width:640px){#tut{max-width:calc(100% - 32px);top:calc(64px + env(safe-area-inset-top,0px))}}
+/* floaty HUD */
+@keyframes floaty{0%,100%{transform:translateY(0) rotate(-0.6deg)}50%{transform:translateY(-4px) rotate(0.6deg)}}
+.money{animation:floaty 3.2s ease-in-out infinite;transform-origin:left center}
+.rate{animation:floaty 3.6s ease-in-out -1.2s infinite}
+.spd{animation:floaty 4s ease-in-out -2s infinite;font-family:var(--display);font-size:14px;color:var(--cream);text-shadow:2px 2px 0 var(--ink);
+  display:flex;align-items:baseline;gap:6px;margin-top:2px;position:relative}
+.spd b{color:#8fe05a;font-size:18px;font-variant-numeric:tabular-nums}
+.spdl{opacity:.85}
+.lvbar{display:inline-block;width:56px;height:7px;margin-left:6px;vertical-align:2px;background:rgba(27,5,7,.7);border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.lvbar i{display:block;height:100%;width:0;background:#8fe05a;transition:width .3s}
+#spdup{color:#8fe05a;font-size:14px;opacity:0}
+#spdup.go{animation:spdup 1.4s ease-out}
+@keyframes spdup{0%{opacity:0;transform:translateY(6px) scale(.8)}15%{opacity:1;transform:translateY(0) scale(1.25)}70%{opacity:1;transform:translateY(-6px) scale(1)}100%{opacity:0;transform:translateY(-14px)}}
+.hud-tr button.ico{display:grid;place-items:center;padding:5px 7px;min-width:36px}
+.hud-tr button.ico .x{display:none}.hud-tr button.ico.off{color:#ff6b5e;border-color:#ff6b5e}.hud-tr button.ico.off .x{display:inline}.hud-tr button.ico.off .w{display:none}
+.hud-tr button{animation:floaty 3.4s ease-in-out infinite}.hud-tr button+button{animation-delay:-1.4s}
+.shop{animation:floaty 4.4s ease-in-out infinite}
+/* hold-to-grab */
+#ctrlhint{position:absolute;left:15%;bottom:8%;transform:translateX(-50%);pointer-events:none;z-index:6;text-align:center;font-family:var(--display);color:var(--cream)}
+#ctrlhint .krow{display:flex;justify-content:center;gap:5px;margin-top:5px}
+#ctrlhint .k{width:40px;height:40px;display:grid;place-items:center;background:var(--ink);border:2px solid var(--cream);font-weight:700;font-size:18px;box-shadow:3px 3px 0 #000;transition:transform .08s,background .08s}
+#ctrlhint .k.on{background:#f2b521;color:#1a0f08;transform:translate(2px,2px);box-shadow:1px 1px 0 #000}
+#ctrlhint .k.go{animation:kgo .7s steps(2) infinite}
+@keyframes kgo{50%{background:#f2b521;color:#1a0f08}}
+#ctrlhint .cl{margin-top:8px;font-size:14px;letter-spacing:1px;text-shadow:2px 2px 0 #000}
+.stage.touch #ctrlhint{left:22%;bottom:24%}
+#ctrlhint .th{position:relative;width:120px;height:150px;display:block}
+.stage:not(.touch) #ctrlhint .th{display:none}
+#ctrlhint .th .ring{position:absolute;left:10px;top:0;width:96px;height:96px;border:3px solid rgba(243,227,182,.7);border-radius:50%;background:rgba(0,0,0,.25)}
+#ctrlhint .th .nub{position:absolute;left:38px;top:28px;width:40px;height:40px;border-radius:50%;background:var(--cream);box-shadow:2px 2px 0 #000;animation:nubup 1.2s ease-in-out infinite}
+#ctrlhint.run .th .nub{animation-name:nubdn}
+@keyframes nubup{0%,20%{transform:translate(0,0)}60%,80%{transform:translate(0,-26px)}}
+@keyframes nubdn{0%,20%{transform:translate(0,0)}60%,80%{transform:translate(0,26px)}}
+#ctrlhint .th .cl{position:absolute;left:0;right:0;top:108px}
+.stage.cine #ctrlhint{visibility:hidden}
+#pick.big .ring,#pick.big .key{transform:scale(1.9)}#pick.big{animation:pkbig .55s ease-in-out infinite alternate}
+@keyframes pkbig{from{margin-top:0}to{margin-top:-14px}}
+#pick{position:absolute;left:0;top:0;width:58px;height:58px;pointer-events:none;display:grid;place-items:center}
+#pick .ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--c,#f2b521) calc(var(--p,0)*360deg),rgba(27,5,7,.75) 0);
+  -webkit-mask:radial-gradient(circle,transparent 52%,#000 54%);mask:radial-gradient(circle,transparent 52%,#000 54%)}
+#pick .key{position:relative;width:34px;height:34px;display:grid;place-items:center;background:var(--ink);border:2px solid var(--cream);font-family:var(--display);font-weight:700;font-size:16px;color:var(--cream);box-shadow:2px 2px 0 #000}
+#pick .hint{position:absolute;top:62px;font-family:var(--display);font-size:11px;color:var(--cream);text-shadow:2px 2px 0 var(--ink);white-space:nowrap}
+#pickbtn{position:absolute;right:max(20px,env(safe-area-inset-right,0px));bottom:calc(28px + env(safe-area-inset-bottom,0px));width:104px;height:104px;border-radius:50%;
+  font-size:13px;line-height:1.3;background:conic-gradient(#f2b521 calc(var(--p,0)*360deg),rgba(27,5,7,.88) 0);border:4px solid var(--cream);box-shadow:4px 4px 0 var(--ink);color:var(--cream);touch-action:none}
+#pickbtn span{display:grid;place-items:center;width:78px;height:78px;margin:auto;border-radius:50%;background:var(--ink)}
+#jumpbtn{display:none}
+  .stage.touch #jumpbtn{display:grid;place-items:center;position:absolute;right:max(20px,env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));
+    width:92px;height:92px;border-radius:50%;padding:0;background:rgba(27,5,7,.85);border:4px solid var(--gold);box-shadow:4px 4px 0 var(--ink);color:var(--gold);
+    font-size:15px;font-weight:700;touch-action:none;-webkit-user-select:none;user-select:none}
+  .stage.touch #jumpbtn:active{background:var(--gold);color:var(--ink)}
+  .stage.touch #pickbtn{right:calc(max(20px,env(safe-area-inset-right,0px)) + 108px);bottom:calc(30px + env(safe-area-inset-bottom,0px));width:92px;height:92px}
+  .stage.touch #pickbtn span{width:68px;height:68px}
+  .stage.touch .shop{bottom:auto;top:calc(120px + env(safe-area-inset-top,0px))}
+  .stage.touch #sellbox button{min-height:40px}
+
+.stage.menu #jumpbtn,.stage.menu #pickbtn{display:none}
+/* UI mirror: the HTML UI is drawn into the game canvas (so canvas recordings show it); the DOM copy stays for clicks only */
+.stage.mirror>*:not(canvas){filter:opacity(0)!important}
+.stage.noads .adbtn::before{display:none}
+/* HUD corners swapped: money + run level top-RIGHT, music / sound / menu buttons top-LEFT */
+.hud-tl{left:auto!important;right:max(16px,env(safe-area-inset-right,0px));align-items:flex-end;text-align:right}
+.hud-tl .spd{justify-content:flex-end}
+.money{transform-origin:right center}
+.hud-tr{right:auto!important;left:max(16px,env(safe-area-inset-left,0px));flex-direction:row-reverse}
+/* first-time shop hint: the cheapest upgrade pulses gold until you buy something */
+.shop button{position:relative}
+.shop button.hint{border-color:#ffd23a;animation:hintpulse 1s ease-in-out infinite}
+@keyframes hintpulse{0%,100%{box-shadow:3px 3px 0 var(--ink),0 0 0 0 rgba(255,210,58,.0)}50%{box-shadow:3px 3px 0 var(--ink),0 0 0 4px rgba(255,210,58,.9)}}
+/* on phones the floating grab prompt itself is a button */
+.stage.touch #pick{pointer-events:auto;cursor:pointer}
+.pxhand{display:block}
+#buytag{position:absolute;right:-6px;top:-11px;background:#ffd23a;color:var(--ink);font:700 10px/1 var(--display);padding:3px 6px;box-shadow:2px 2px 0 var(--ink);animation:floaty 1.2s ease-in-out infinite;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.money,.rate,.spd,.hud-tr button,.shop{animation:none}}
+.link{background:none;border:none;box-shadow:none;color:var(--cream);opacity:.7;text-decoration:underline;padding:4px 0;font-family:var(--body);font-size:12px}
+@media (max-height:480px){.stage.touch .shop{right:calc(max(16px,env(safe-area-inset-right,0px)) + 118px);bottom:calc(8px + env(safe-area-inset-bottom,0px));max-height:calc(100% - 64px)}}
+@media (max-height:480px){.shop{gap:5px;padding-top:4px}.shop button{padding-top:3px;padding-bottom:3px}.shop .ico3d{width:40px;height:40px}.shop .ds{font-size:10px}.shoptitle{font-size:12px}}
+@media (max-width:560px){
+  .shop button{width:212px;grid-template-columns:42px 1fr auto;column-gap:7px;padding:4px 7px 4px 4px}.shop .ico3d{width:42px;height:42px}
+  .shop .nm{font-size:11px}.shop .ds{font-size:10px}.shop .cost{font-size:11px}
+  .goal{font-size:11px;max-width:26ch}.hud-tr button{font-size:11px;padding:5px 7px}
+}
+
+</style>
+</head>
+<body>
+<div class="stage menu booting" id="stage">
+  <div id="floaters"></div>
+  <div class="hud-tl">
+    <div class="money" id="money">$0</div>
+    <div class="rate" id="rate">+$0/s</div>
+    <div class="spd"><span class="spdl">RUN LV</span> <b id="spd">–</b><span class="lvbar"><i id="lvbar"></i></span><b id="trailx"></b><span id="spdup"></span></div>
+  </div>
+  <div class="hud-tr"><button id="music" class="ico" aria-pressed="false" aria-label="Music"><svg viewBox="0 0 16 16" width="18" height="18" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M6 2h8v9h-1v1h-3v-1H9V9h1V8h3V4H7v8H6v1H3v-1H2v-2h1V9h3z"/><path class="x" fill="currentColor" d="M1 1h2v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v2h-2v-1h-1v-1h-1v-1h-1v-1h-1v-1h-1v-1H9V9H8V8H7V7H6V6H5V5H4V4H3V3H2V2H1z"/></svg></button><button id="mute" class="ico" aria-pressed="false" aria-label="Sound"><svg viewBox="0 0 16 16" width="18" height="18" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M2 6h3l4-3v10l-4-3H2z"/><path class="w" fill="currentColor" d="M11 5h1v1h1v4h-1v1h-1v-1h1V6h-1zM13 3h1v1h1v8h-1v1h-1v-1h1V4h-1z"/><path class="x" fill="currentColor" d="M10 5h2v1h1v1h1V5h2v2h-1v1h-1v1h1v1h1v2h-2v-2h-1v1h-1v1h-2v-2h1V9h1V8h-1V7h-1z"/></svg></button><button id="help">Menu</button><button id="reset" hidden>Reset</button></div>
+  <div class="shop" id="shop" aria-label="Rat Shop" hidden>
+    <div class="shoptitle">RAT SHOP</div>
+    <button id="buy-legs" data-ico="legs"><span id="buytag" hidden>BUY THIS!</span><canvas class="ico3d" width="112" height="112" aria-hidden="true"></canvas><span class="nm">FAST FEET</span><span class="ds">Springier paws. +4 run level</span><span class="lv"></span><span class="cost"></span></button>
+    <button id="buy-pockets" data-ico="pockets"><canvas class="ico3d" width="112" height="112" aria-hidden="true"></canvas><span class="nm">CHEEK POUCH</span><span class="ds">Carry one more snack per trip</span><span class="lv"></span><span class="cost"></span></button>
+    <button id="buy-stash" data-ico="stash"><canvas class="ico3d" width="112" height="112" aria-hidden="true"></canvas><span class="nm">BIGGER STASH</span><span class="ds">6 more slots in your hoard</span><span class="lv"></span><span class="cost"></span></button>
+    <button id="boost" class="boost" data-ico="boost" hidden><canvas class="ico3d" width="112" height="112" aria-hidden="true"></canvas><span class="nm">2× MONEY</span><span class="ds">Watch an ad, double income for 2 min</span><span class="lv"></span><span class="cost">AD</span></button>
+    <button id="freegold" class="boost" data-ico="gold" hidden><canvas class="ico3d" width="112" height="112" aria-hidden="true"></canvas><span class="nm">FREE GOLD</span><span class="ds" id="freegold-d"></span><span class="lv"></span><span class="cost">AD</span></button>
+    <button id="freeup" class="boost" data-ico="gift" hidden><canvas class="ico3d" width="112" height="112" aria-hidden="true"></canvas><span class="nm">FREE UPGRADE</span><span class="ds" id="freeup-d"></span><span class="lv"></span><span class="cost">AD</span></button>
+  </div>
+  <div id="banner" hidden></div>
+  <div id="fade"></div>
+  <div id="credits" class="credits" hidden><div class="cr-win"><div id="cr-roll" class="cr-roll"></div></div><button id="cr-go">KEEP PLAYING</button></div>
+  <div id="talk" class="talk" hidden><div id="talk-n" class="talk-n"></div><div id="talk-t" class="talk-t"></div><div id="talk-h" class="talk-h"></div></div>
+  <div id="tut" hidden><span id="tut-n"></span><span id="tut-t"></span></div>
+  <div id="tutmark" hidden><div id="tutmark-l"></div><div id="tutmark-a"></div></div>
+  <div id="introcap" hidden></div>
+  <div id="sellbox" hidden role="dialog" aria-label="Sell food"><div id="sb-name"></div><div id="sb-rate"></div>
+    <div class="sb-row"><button id="sb-sell"></button><button id="sb-back">BACK</button></div></div>
+  <div id="ctrlhint" hidden><div class="kb mouse-only"><div class="krow"><span class="k" id="kW">W</span></div><div class="krow"><span class="k" id="kA">A</span><span class="k" id="kS">S</span><span class="k" id="kD">D</span></div><div class="cl">MOVE</div></div><div class="th touch-only"><span class="ring"></span><span class="nub"></span><div class="cl">DRAG TO MOVE</div></div></div>
+  <div id="pick" hidden><span class="ring"></span><span class="key"><span class="mouse-only">E</span><span class="touch-only"><svg class="pxhand" viewBox="0 0 16 17" width="26" height="28" shape-rendering="crispEdges" aria-hidden="true"><path fill="#1b0507" d="M5 0h4v1h1v1h2v1h1v1h2v8h-1v2h-1v2h-1v1H5v-1H4v-1H3v-2H2v-1H1V7H0V5h3v1h1V1h1z"/><path fill="#f3e3b6" d="M5 1h3v7h1V2h2v6h1V4h2v7h-1v2h-1v2h-1v1H6v-1H5v-1H4v-2H3v-1H2V8H1V6h2v1h1v2h1z"/><path fill="#d9c08a" d="M5 13h1v1h6v-1h1v1h-1v1H6v-1H5z"/></svg></span></span><span class="hint mouse-only" id="pickhint">GRAB</span></div>
+  <button id="pickbtn" hidden aria-label="Grab"><span>GRAB</span></button>
+  <button id="jumpbtn" aria-label="Jump"><span>JUMP</span></button>
+  <div id="stick" hidden><div id="knob"></div></div>
+  <div class="overlay start" id="intro">
+    <div class="startbox">
+      <div class="namehd">NAME YOUR RAT</div><canvas id="preview" aria-label="Your rat"></canvas>
+      <div class="namerow"><input id="pname" maxlength="16" autocomplete="off" spellcheck="false" aria-label="Your rat's name"><button id="pdice" class="pdice" aria-label="Random name" title="Random name"><svg viewBox="0 0 16 16" width="100%" height="100%" shape-rendering="crispEdges"><rect x="1" y="1" width="14" height="14" fill="#f3e3b6"/><rect x="1" y="1" width="14" height="2" fill="#fff"/><rect x="1" y="13" width="14" height="2" fill="#c9b48f"/><rect x="3" y="3" width="3" height="3" fill="#5a1418"/><rect x="10" y="3" width="3" height="3" fill="#5a1418"/><rect x="6.5" y="6.5" width="3" height="3" fill="#5a1418"/><rect x="3" y="10" width="3" height="3" fill="#5a1418"/><rect x="10" y="10" width="3" height="3" fill="#5a1418"/></svg></button></div>
+      <button id="play" class="bigplay" disabled>PLAY</button>
+      <div class="camsel" role="group" aria-label="Camera">
+        <button class="ver" data-mode="follow" aria-pressed="true">FOLLOW CAM</button>
+        <button class="ver" data-mode="overhead" aria-pressed="false">OVERHEAD</button>
+      </div>
+      <button id="langbtn" class="langbtn" data-noi18n>English</button>
+      <span id="loadmsg" hidden>LOADING…</span>
+    </div>
+    <span class="gamever" id="gamever">v60</span>
+  </div>
+  <div class="overlay" id="offer" hidden>
+    <div class="card offer"><div class="offer-t" id="offer-t"></div><p class="offer-d" id="offer-d" data-noi18n></p>
+      <div class="offer-row"><button id="offer-yes" class="adbtn"></button><button id="offer-no" class="link"></button></div>
+      <div class="offer-bar"><i id="offer-bar"></i></div></div>
+  </div>
+  <button id="wheelad" class="adbtn" hidden>+10 RUN LEVELS</button>
+  <div class="overlay" id="skins" hidden>
+    <div class="card skins"><div class="offer-t">COSMETICS</div><div class="cos-top"><button class="cos-tab on" data-tab="rats" aria-label="Rats" title="Rats"><canvas width="112" height="112"></canvas></button><button class="cos-tab" data-tab="hats" aria-label="Hats" title="Hats"><canvas width="112" height="112"></canvas></button><button class="cos-tab" data-tab="trails" aria-label="Trails" title="Trails"><canvas width="112" height="112"></canvas></button><span class="cos-money" id="cos-money"></span></div>
+      <div class="skin-grid" id="skin-grid"></div><div class="cos-pager"><button id="cos-prev" aria-label="Previous page">&lsaquo;</button><span id="cos-dots"></span><button id="cos-next" aria-label="Next page">&rsaquo;</button></div><div class="cos-foot"><button id="skins-close">Done</button></div></div>
+  </div>
+  <div class="overlay" id="confirm" hidden>
+    <div class="card"><p style="margin:0 0 12px;font-size:15px">Reset all money, stash and upgrades? This can't be undone.</p>
+      <div class="row" style="justify-content:flex-start"><button id="confirm-yes">Reset</button><button id="confirm-no">Keep playing</button></div></div>
+  </div>
+  <div id="rotate" hidden><div class="rot-phone"><i></i></div><b>TURN YOUR DEVICE</b><span>Rat Haul plays in landscape</span></div>
+</div>
+<script src="js/three.min.js"></script>
+<script src="js/GLTFLoader.js"></script>
+<script src="js/DRACOLoader.js"></script>
+<script src="js/models.js"></script>
+<script src="js/music-samples.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
